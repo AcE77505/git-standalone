@@ -1,4 +1,4 @@
-# git-portable-android
+# git-standalone
 
 在 **Android / 通用 Linux** 上可直接运行的 **单文件、完全静态** ARM64 git（git 2.43.4）。
 
@@ -24,7 +24,7 @@
 ## 目录结构
 
 ```
-git-portable-android/
+git-standalone/
 ├── build.sh                    # 一键构建脚本（下载→编译→出产物）
 ├── README.md
 └── patches/
@@ -74,7 +74,7 @@ git-portable-android/
 ### 一键构建
 ```sh
 git clone <你的仓库地址>
-cd git-portable-android
+cd git-standalone
 ./build.sh                 # 产物在 ./work/git
 # 或指定并行数与工作目录
 JOBS=8 WORKDIR=/tmp/build ./build.sh
