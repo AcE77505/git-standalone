@@ -1,0 +1,99 @@
+diff -ruN a/src/lib/ares_init.c b/src/lib/ares_init.c
+--- a/src/lib/ares_init.c	2024-02-23 15:23:02.000000000 +0800
++++ b/src/lib/ares_init.c	2026-08-16 13:55:30.254087671 +0800
+@@ -126,6 +126,43 @@
+   ares__destroy_server(data);
+ }
+ 
++
++static ares_bool_t ares__servers_only_loopback(ares_channel_t *channel)
++{
++  ares__slist_node_t *node;
++
++  if (channel == NULL || ares__slist_len(channel->servers) == 0)
++    return ARES_FALSE;
++
++  for (node = ares__slist_node_first(channel->servers); node != NULL;
++       node = ares__slist_node_next(node)) {
++    const struct server_state *server = ares__slist_node_val(node);
++
++    if (server->addr.family == AF_INET) {
++      unsigned int a = ntohl(server->addr.addr.addr4.s_addr);
++      if ((a >> 24) != 127)   /* not 127.0.0.0/8 loopback */
++        return ARES_FALSE;
++    } else if (server->addr.family == AF_INET6) {
++      /* ares_in6_addr is not a standard struct in6_addr; check for ::1
++       * manually by looking at the raw bytes. */
++      const unsigned char *b =
++          (const unsigned char *)&server->addr.addr.addr6;
++      int i, allzero = 1;
++      for (i = 0; i < 15; i++) {
++        if (b[i] != 0) {
++          allzero = 0;
++          break;
++        }
++      }
++      if (!(allzero && b[15] == 1))
++        return ARES_FALSE;
++    } else {
++      return ARES_FALSE;
++    }
++  }
++  return ARES_TRUE;
++}
++
+ static ares_status_t init_by_defaults(ares_channel_t *channel)
+ {
+   char         *hostname = NULL;
+@@ -156,21 +193,41 @@
+     channel->ndots = 1;
+   }
+ 
+-  if (ares__slist_len(channel->servers) == 0) {
+-    /* Add a default local named server to the channel unless configured not
+-     * to (in which case return an error).
++  if (ares__slist_len(channel->servers) == 0 ||
++      ares__servers_only_loopback(channel)) {
++    /* Add fallback servers unless configured not to (in which case return an
++     * error). Note: the NO_DFLT_SVR flag only applies when there were no
++     * servers at all; if the system provided nothing but loopback servers we
++     * still replace them with usable public ones.
+      */
+-    if (channel->flags & ARES_FLAG_NO_DFLT_SVR) {
++    if ((channel->flags & ARES_FLAG_NO_DFLT_SVR) &&
++        ares__slist_len(channel->servers) == 0) {
+       rc = ARES_ENOSERVER;
+       goto error;
+     }
+ 
+-    addr.family            = AF_INET;
+-    addr.addr.addr4.s_addr = htonl(INADDR_LOOPBACK);
+-
+-    rc = ares__sconfig_append(&sconfig, &addr, 0, 0, NULL);
+-    if (rc != ARES_SUCCESS) {
+-      goto error;
++    /* Fallback to well-known public DNS servers when the system provides no
++     * usable nameservers (e.g. Android, where /etc/resolv.conf is not
++     * populated, or 127.0.0.1 is the only entry and nothing listens there).
++     * This lets the resolver work out of the box without system DNS config. */
++    {
++      static const char *fallback_servers[] = {
++        "114.114.114.114", /* China Telecom */
++        "223.5.5.5",       /* AliDNS */
++        "119.29.29.29",    /* DNSPod / Tencent */
++        "8.8.8.8",         /* Google */
++        "1.1.1.1",         /* Cloudflare */
++        NULL
++      };
++      int i;
++      for (i = 0; fallback_servers[i] != NULL; i++) {
++        addr.family            = AF_INET;
++        addr.addr.addr4.s_addr = inet_addr(fallback_servers[i]);
++        rc = ares__sconfig_append(&sconfig, &addr, 0, 0, NULL);
++        if (rc != ARES_SUCCESS) {
++          goto error;
++        }
++      }
+     }
+ 
+     rc = ares__servers_update(channel, sconfig, ARES_FALSE);
