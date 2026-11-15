@@ -168,7 +168,8 @@ unpack git.tar.xz git-2.43.4
        --without-tcltk --without-python \
        CPPFLAGS="-I$PREFIX/include $IDIRAFTER" \
        LDFLAGS="-static -L$PREFIX/lib" \
-       LIBS="-lssl -lcrypto -lz -lcares" >/dev/null \
+       LIBS="-lssl -lcrypto -lz -lcares" \
+  && cat config.mak.autogen \
   && PATH="$PREFIX/bin:$PATH" \
      make -j"$JOBS" RUNTIME_PREFIX=YesPlease PROCFS_EXECUTABLE_PATH=/proc/self/exe \
        gitexecdir=libexec/git-core template_dir=templates \
