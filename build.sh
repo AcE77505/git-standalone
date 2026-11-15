@@ -129,7 +129,6 @@ unpack curl.tar.gz curl-8.6.0
        --disable-ldap --disable-ldaps --disable-manual --disable-dict --disable-telnet \
        --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher \
        --disable-rtsp --disable-smb \
-       --without-ca-bundle --with-ca-path=/system/etc/security/cacerts \
        CPPFLAGS="$IDIRAFTER" LDFLAGS="-static" >/dev/null \
   && make -j"$JOBS" -C lib LDFLAGS="-static" >/dev/null )
 cp "$SRC/curl-8.6.0/lib/.libs/libcurl.a" "$PREFIX/lib/"
