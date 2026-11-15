@@ -173,7 +173,7 @@ unpack git.tar.xz git-2.43.4
      make -j"$JOBS" RUNTIME_PREFIX=YesPlease PROCFS_EXECUTABLE_PATH=/proc/self/exe \
        gitexecdir=libexec/git-core template_dir=templates \
        ETC_GITCONFIG=etc/gitconfig ETC_GITATTRIBUTES=etc/gitattributes \
-       NO_PERL=YesPlease NO_GETTEXT=YesPlease NO_PYTHON=YesPlease >/dev/null )
+       NO_PERL=YesPlease NO_GETTEXT=YesPlease NO_PYTHON=YesPlease )
 
 # 复制产物：单文件 git 必须命名为 git（或任何不以 git- 开头的名字）
 cp "$SRC/git-2.43.4/git" "$OUT"
