@@ -162,7 +162,7 @@ unpack git.tar.xz git-2.43.4
   && PATH="$PREFIX/bin:$PATH" \
      CC=musl-gcc ./configure \
        --prefix="$PREFIX/git-install" \
-       --sysconfdir=etc \
+       --sysconfdir="$PREFIX/git-install/etc" \
        --with-curl="$PREFIX" --with-expat="$PREFIX" \
        --with-libpcre2="$PREFIX" --with-zlib="$PREFIX" \
        --without-tcltk --without-python \
@@ -172,6 +172,7 @@ unpack git.tar.xz git-2.43.4
   && PATH="$PREFIX/bin:$PATH" \
      make -j"$JOBS" RUNTIME_PREFIX=YesPlease PROCFS_EXECUTABLE_PATH=/proc/self/exe \
        gitexecdir=libexec/git-core template_dir=templates \
+       ETC_GITCONFIG=etc/gitconfig ETC_GITATTRIBUTES=etc/gitattributes \
        NO_PERL=YesPlease NO_GETTEXT=YesPlease NO_PYTHON=YesPlease >/dev/null )
 
 # 复制产物：单文件 git 必须命名为 git（或任何不以 git- 开头的名字）
