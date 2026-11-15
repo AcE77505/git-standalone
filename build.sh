@@ -125,7 +125,7 @@ unpack curl.tar.gz curl-8.6.0
        --disable-shared --enable-static \
        --enable-ares="$PREFIX" --with-ssl="$PREFIX" --with-zlib="$PREFIX" \
        --without-libidn2 --without-librtmp --without-brotli --without-nghttp2 \
-       --without-libssh2 --without-gssapi --without-libpsl \
+       --without-libssh2 --without-gssapi --without-libpsl --without-zstd \
        --disable-ldap --disable-ldaps --disable-manual --disable-dict --disable-telnet \
        --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher \
        --disable-rtsp --disable-smb \
