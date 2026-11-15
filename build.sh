@@ -22,6 +22,10 @@ set -e
 
 : "${JOBS:=$(nproc)}"
 : "${WORKDIR:=./work}"
+case "$WORKDIR" in
+	/*) ;;
+	*) WORKDIR="$PWD/$WORKDIR" ;;
+esac
 : "${PREFIX:=$WORKDIR/prefix}"
 : "${OUT:=$WORKDIR/git}"
 
