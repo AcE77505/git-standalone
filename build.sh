@@ -108,8 +108,10 @@ unpack pcre2.tar.gz pcre2-10.43
 echo "---- 2.5 c-ares（应用 DNS 兜底补丁）----"
 unpack cares.tar.gz c-ares-1.27.0
 ( cd "$SRC/c-ares-1.27.0" && patch -p1 -s < "$SCRIPT_DIR/patches/c-ares-1.27.0-dns.patch" )
+( cd "$SRC/c-ares-1.27.0" && patch -p1 -s < "$SCRIPT_DIR/patches/c-ares-1.27.0-android-paths.patch" )
 ( cd "$SRC/c-ares-1.27.0" \
-  && CC=musl-gcc ./configure --prefix="$PREFIX" --disable-shared --enable-static CPPFLAGS="$IDIRAFTER" >/dev/null \
+  && CC=musl-gcc ./configure --prefix="$PREFIX" --disable-shared --enable-static \
+       CPPFLAGS="$IDIRAFTER -DCARES_ANDROID" >/dev/null \
   && make -j"$JOBS" >/dev/null && make install >/dev/null )
 
 echo "---- 2.6 curl（启用 c-ares）----"
@@ -123,6 +125,7 @@ unpack curl.tar.gz curl-8.6.0
        --disable-ldap --disable-ldaps --disable-manual --disable-dict --disable-telnet \
        --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher \
        --disable-rtsp --disable-smb \
+       --without-ca-bundle --with-ca-path=/system/etc/security/cacerts \
        CPPFLAGS="$IDIRAFTER" LDFLAGS="-static" >/dev/null \
   && make -j"$JOBS" -C lib LDFLAGS="-static" >/dev/null )
 cp "$SRC/curl-8.6.0/lib/.libs/libcurl.a" "$PREFIX/lib/"
@@ -150,10 +153,12 @@ chmod +x "$PREFIX/bin/curl-config"
 echo "==================== 3. 编译 git ===================="
 unpack git.tar.xz git-2.43.4
 ( cd "$SRC/git-2.43.4" && patch -p1 -s < "$SCRIPT_DIR/patches/git-2.43.4-android.patch" )
+( cd "$SRC/git-2.43.4" && patch -p1 -s < "$SCRIPT_DIR/patches/git-2.43.4-portable-paths.patch" )
 ( cd "$SRC/git-2.43.4" \
   && PATH="$PREFIX/bin:$PATH" \
      CC=musl-gcc ./configure \
        --prefix="$PREFIX/git-install" \
+       --sysconfdir=etc \
        --with-curl="$PREFIX" --with-expat="$PREFIX" \
        --with-libpcre2="$PREFIX" --with-zlib="$PREFIX" \
        --without-tcltk --without-python \
@@ -162,7 +167,8 @@ unpack git.tar.xz git-2.43.4
        LIBS="-lssl -lcrypto -lz -lcares" >/dev/null \
   && PATH="$PREFIX/bin:$PATH" \
      make -j"$JOBS" RUNTIME_PREFIX=YesPlease PROCFS_EXECUTABLE_PATH=/proc/self/exe \
-       gitexecdir=libexec/git-core template_dir=share/git-core/templates >/dev/null )
+       gitexecdir=libexec/git-core template_dir=templates \
+       NO_PERL=YesPlease NO_GETTEXT=YesPlease NO_PYTHON=YesPlease >/dev/null )
 
 # 复制产物：单文件 git 必须命名为 git（或任何不以 git- 开头的名字）
 cp "$SRC/git-2.43.4/git" "$OUT"

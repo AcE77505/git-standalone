@@ -1,0 +1,20 @@
+diff -ruN c-ares-base/src/lib/ares_private.h c-ares-1.27.0/src/lib/ares_private.h
+--- c-ares-base/src/lib/ares_private.h	2024-02-23 15:23:02.000000000 +0800
++++ c-ares-1.27.0/src/lib/ares_private.h	2026-11-15 16:10:04.457599600 +0800
+@@ -93,6 +93,16 @@
+ #  define PATH_RESOLV_CONF "/system/settings/network/resolv.conf"
+ #  define PATH_HOSTS       "/system/settings/network/hosts"
+ 
++#elif defined(CARES_ANDROID)
++
++/*
++ * Portable Android build: never read a desktop Linux /etc/resolv.conf.
++ * If this file is absent (it normally is), ares_init.c falls back to the
++ * built-in public DNS list or to http.dnsServers / CARES_OPT_SERVERS.
++ */
++#  define PATH_RESOLV_CONF "/system/settings/network/resolv.conf"
++#  define PATH_HOSTS       "/system/etc/hosts"
++
+ #else
+ 
+ #  define PATH_RESOLV_CONF "/etc/resolv.conf"

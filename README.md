@@ -27,9 +27,12 @@
 git-standalone/
 ├── build.sh                    # 一键构建脚本（下载→编译→出产物）
 ├── README.md
-└── patches/
-    ├── git-2.43.4-android.patch    # git 的 11 处源码修改
-    └── c-ares-1.27.0-dns.patch     # c-ares 的 DNS 兜底修改
+├── patches/
+│   ├── git-2.43.4-android.patch            # git 的 11 处单文件修改
+│   ├── git-2.43.4-portable-paths.patch     # 去除构建机/Linux 固定路径
+│   ├── c-ares-1.27.0-dns.patch             # DNS 兜底
+│   └── c-ares-1.27.0-android-paths.patch   # 不再读取 /etc/resolv.conf
+└── ...
 ```
 
 ---
@@ -59,7 +62,22 @@ git-standalone/
 |------|----------|
 | `src/lib/ares_init.c` | 当 `/etc/resolv.conf` **为空或只有回环地址**时，自动兜底到公共 DNS：`114.114.114.114`、`223.5.5.5`、`119.29.29.29`、`8.8.8.8`、`1.1.1.1`（新增 `ares__servers_only_loopback()` 检测） |
 
-### 3. 未修改源码、仅改编译参数的依赖
+### 3. 便携路径补丁（patches/git-2.43.4-portable-paths.patch、patches/c-ares-1.27.0-android-paths.patch）
+
+| 文件 | 修改内容 |
+|------|----------|
+| `exec-cmd.c` | `RUNTIME_PREFIX` 计算失败时使用可执行文件所在目录，不再回退到构建机路径 |
+| `config.c` | `HOME` 缺失或不可写时，全局配置写到 `<git目录>/gitconfig` |
+| `run-command.c` / `run-command.h` / `help.c` / `builtin/help.c` | 运行时优先 `/system/bin/sh`，否则回退到编译时的 `SHELL_PATH` |
+| `builtin/difftool.c` | `TMPDIR` 未设置且 `/tmp` 不可用时使用 `/data/local/tmp` |
+| `ares_private.h`（c-ares） | `CARES_ANDROID` 下不再读取 `/etc/resolv.conf`，改用 `/system/settings/network/resolv.conf`，不存在时走内置公共 DNS 兜底 |
+| `build.sh` | `--sysconfdir=etc`、`template_dir=templates`、`NO_PERL`/`NO_GETTEXT`/`NO_PYTHON`、curl `--without-ca-bundle --with-ca-path=/system/etc/security/cacerts`、c-ares `-DCARES_ANDROID` |
+
+资源路径现在都相对可执行文件目录：系统配置为 `<git目录>/etc/gitconfig`，全局配置为 `<git目录>/gitconfig`，`git --exec-path` 为 `<git目录>/libexec/git-core`（单文件不要求该目录存在，内置命令不依赖它）。
+
+仍然保留的 libc/musl 路径都是失败可恢复、不影响 git 核心的：`/etc/passwd`（git 会回退为 `unknown`）、`/etc/services`（只影响命名端口）、`/etc/nsswitch.conf`、`/var/run/nscd`、`/usr/share/zoneinfo`（可用 `TZ=:/system/usr/share/zoneinfo/Asia/Shanghai` 指定 Android 时区文件）。
+
+### 4. 未修改源码、仅改编译参数的依赖
 `curl`（`--enable-ares`）、`openssl`（`no-shared no-module no-legacy -static`）、
 `zlib`、`expat`、`pcre2` —— 这 5 个都是原版源码，只做 musl 静态编译。
 

@@ -1,0 +1,154 @@
+diff -ruN git-base/builtin/difftool.c git-port/builtin/difftool.c
+--- git-base/builtin/difftool.c	2026-11-15 16:09:05.933705600 +0800
++++ git-port/builtin/difftool.c	2026-11-15 16:10:04.311795700 +0800
+@@ -381,6 +381,9 @@
+ 
+ 	/* Setup temp directories */
+ 	tmp = getenv("TMPDIR");
++	if (!tmp && access("/tmp", W_OK) != 0 &&
++	    access("/data/local/tmp", W_OK) == 0)
++		tmp = "/data/local/tmp";
+ 	strbuf_add_absolute_path(&tmpdir, tmp ? tmp : "/tmp");
+ 	strbuf_trim_trailing_dir_sep(&tmpdir);
+ 	strbuf_addstr(&tmpdir, "/git-difftool.XXXXXX");
+diff -ruN git-base/builtin/help.c git-port/builtin/help.c
+--- git-base/builtin/help.c	2026-11-15 16:09:05.938007900 +0800
++++ git-port/builtin/help.c	2026-11-15 16:09:54.941134900 +0800
+@@ -314,8 +314,9 @@
+ static void exec_man_cmd(const char *cmd, const char *page)
+ {
+ 	struct strbuf shell_cmd = STRBUF_INIT;
++	const char *shell = git_shell_path();
+ 	strbuf_addf(&shell_cmd, "%s %s", cmd, page);
+-	execl(SHELL_PATH, SHELL_PATH, "-c", shell_cmd.buf, (char *)NULL);
++	execl(shell, shell, "-c", shell_cmd.buf, (char *)NULL);
+ 	warning(_("failed to exec '%s'"), cmd);
+ 	strbuf_release(&shell_cmd);
+ }
+diff -ruN git-base/config.c git-port/config.c
+--- git-base/config.c	2026-11-15 16:09:05.908448000 +0800
++++ git-port/config.c	2026-11-15 16:09:59.031915900 +0800
+@@ -2005,8 +2005,19 @@
+ 	char *xdg_config = NULL;
+ 
+ 	if (!user_config) {
+-		user_config = interpolate_path("~/.gitconfig", 0);
+-		xdg_config = xdg_config_home("config");
++		const char *home = getenv("HOME");
++
++		/*
++		 * Portable build: if HOME is missing or not writable (common
++		 * in Android shells), keep the global config next to the
++		 * executable rather than failing or writing to /.
++		 */
++		if (!home || !*home || access(home, W_OK) != 0) {
++			user_config = system_path("gitconfig");
++		} else {
++			user_config = interpolate_path("~/.gitconfig", 0);
++			xdg_config = xdg_config_home("config");
++		}
+ 	}
+ 
+ 	*user_out = user_config;
+diff -ruN git-base/exec-cmd.c git-port/exec-cmd.c
+--- git-base/exec-cmd.c	2026-11-15 16:09:06.847729000 +0800
++++ git-port/exec-cmd.c	2026-11-15 16:09:41.266213700 +0800
+@@ -47,17 +47,23 @@
+ {
+ 	static const char *prefix;
+ 
+-	assert(executable_dirname);
++	if (!executable_dirname)
++		return ".";
++
+ 	assert(is_absolute_path(executable_dirname));
+ 
+ 	if (!prefix &&
+ 	    !(prefix = strip_path_suffix(executable_dirname, GIT_EXEC_PATH)) &&
+ 	    !(prefix = strip_path_suffix(executable_dirname, BINDIR)) &&
+ 	    !(prefix = strip_path_suffix(executable_dirname, "git"))) {
+-		prefix = FALLBACK_RUNTIME_PREFIX;
+-		trace_printf("RUNTIME_PREFIX requested, "
+-				"but prefix computation failed.  "
+-				"Using static fallback '%s'.\n", prefix);
++		/*
++		 * Portable/single-file build: there is no install prefix on
++		 * disk. Resolve relative resource paths next to the executable
++		 * instead of falling back to a build-machine path.
++		 */
++		prefix = executable_dirname;
++		trace_printf("RUNTIME_PREFIX: using executable directory '%s'\n",
++			     prefix);
+ 	}
+ 	return prefix;
+ }
+diff -ruN git-base/help.c git-port/help.c
+--- git-base/help.c	2026-11-15 16:09:06.163789600 +0800
++++ git-port/help.c	2026-11-15 16:09:58.899900000 +0800
+@@ -752,7 +752,7 @@
+ 			strbuf_addstr(buf, "no commit associated with this build\n");
+ 		strbuf_addf(buf, "sizeof-long: %d\n", (int)sizeof(long));
+ 		strbuf_addf(buf, "sizeof-size_t: %d\n", (int)sizeof(size_t));
+-		strbuf_addf(buf, "shell-path: %s\n", SHELL_PATH);
++		strbuf_addf(buf, "shell-path: %s\n", git_shell_path());
+ 		/* NEEDSWORK: also save and output GIT-BUILD_OPTIONS? */
+ 
+ 		if (fsmonitor_ipc__is_supported())
+diff -ruN git-base/run-command.c git-port/run-command.c
+--- git-base/run-command.c	2026-11-15 16:09:06.844866000 +0800
++++ git-port/run-command.c	2026-11-15 16:09:50.488554100 +0800
+@@ -16,6 +16,20 @@
+ #include "packfile.h"
+ #include "compat/nonblock.h"
+ 
++/*
++ * Android's stable shell path is /system/bin/sh; /bin/sh is only a
++ * compatibility symlink on some releases. Prefer the stable path when it
++ * exists, and keep the compiled-in SHELL_PATH everywhere else.
++ */
++const char *git_shell_path(void)
++{
++#ifndef GIT_WINDOWS_NATIVE
++	if (access("/system/bin/sh", X_OK) == 0)
++		return "/system/bin/sh";
++#endif
++	return SHELL_PATH;
++}
++
+ void child_process_init(struct child_process *child)
+ {
+ 	struct child_process blank = CHILD_PROCESS_INIT;
+@@ -279,7 +293,7 @@
+ 
+ 	if (strcspn(argv[0], "|&;<>()$`\\\"' \t\n*?[#~=%") != strlen(argv[0])) {
+ #ifndef GIT_WINDOWS_NATIVE
+-		strvec_push(out, SHELL_PATH);
++		strvec_push(out, git_shell_path());
+ #else
+ 		strvec_push(out, "sh");
+ #endif
+@@ -407,7 +421,7 @@
+ 	 * Add SHELL_PATH so in the event exec fails with ENOEXEC we can
+ 	 * attempt to interpret the command with 'sh'.
+ 	 */
+-	strvec_push(out, SHELL_PATH);
++	strvec_push(out, git_shell_path());
+ 
+ 	if (cmd->git_cmd) {
+ 		/* Single-file build: re-exec the current binary as the "git"
+diff -ruN git-base/run-command.h git-port/run-command.h
+--- git-base/run-command.h	2026-11-15 16:09:04.782207500 +0800
++++ git-port/run-command.h	2026-11-15 16:09:54.796723100 +0800
+@@ -5,6 +5,12 @@
+ 
+ #include "strvec.h"
+ 
++/*
++ * Returns the shell used for commands that need one. On Android this prefers
++ * /system/bin/sh over the compiled-in /bin/sh compatibility symlink.
++ */
++const char *git_shell_path(void);
++
+ /**
+  * The run-command API offers a versatile tool to run sub-processes with
+  * redirected input and output as well as with a modified environment
